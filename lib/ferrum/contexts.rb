@@ -22,6 +22,7 @@ module Ferrum
       @client = client
       @contexts = Concurrent::Map.new
       @manually_attached = Concurrent::Map.new
+      @child_sessions = Concurrent::Map.new
       @default_context = find_implicit_context
       subscribe
       auto_attach
@@ -106,8 +107,10 @@ module Ferrum
       return unless context
       return if context.implicit?
 
+      session_ids = context.targets.values.filter_map(&:session_id)
       begin
         context.close_targets_connection
+        session_ids.each { |session_id| release_session(session_id) }
         @client.command("Target.disposeBrowserContext", timeout: @client.timeout, browserContextId: context.id)
       ensure
         @contexts.delete(context_id)
@@ -167,13 +170,28 @@ module Ferrum
         add_context(context_id)
         target = @contexts[context_id]&.add_target(session_id: session_id, params: info, attached: true)
 
+        adopt_session(client, session_id)
         rearm_auto_attach(session_id, info["type"])
         handle_attach(target, session_id, params, client)
       end
 
       client.on("Target.detachedFromTarget") do |params|
         forget_session(params["targetId"], params["sessionId"])
+        release_session(params["sessionId"])
       end
+    end
+
+    # A session's callbacks live on the browser's dispatcher: they outlast the session unless released. The children
+    # of a session are tracked to release them along with it, their detach event never comes once it is released.
+    def adopt_session(parent, session_id)
+      return unless parent.is_a?(SessionClient)
+
+      @child_sessions.compute_if_absent(parent.session_id) { Concurrent::Array.new } << session_id
+    end
+
+    def release_session(session_id)
+      @client.session(session_id).close
+      @child_sessions.delete(session_id)&.each { |child_id| release_session(child_id) }
     end
 
     def subscribe_target_created

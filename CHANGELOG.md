@@ -60,6 +60,9 @@
 - `FERRUM_CLICK_WAIT` and `FERRUM_GOTO_WAIT`, will be removed in 0.22. Use `FERRUM_NAVIGATION_WAIT` instead
 
 ### Fixed
+- The callbacks of a session destroyed before its context, a worker the page terminated for instance, stayed on the
+  browser's dispatcher for good, a long-running browser grew with every such page. They are released once the session
+  detaches, and with its parent session
 - `dispatcher.clear` raised when another thread registered a callback meanwhile
 - A headful browser with `xvfb: true` sometimes started before Xvfb was ready and exited at once with
   `ProcessTimeoutError`, Ferrum waits for the display now
