@@ -111,5 +111,17 @@ describe Ferrum::Concurrency::Dispatcher do
       expect(dispatcher).not_to be_subscribed("a:1")
       expect(dispatcher).to be_subscribed("b:2")
     end
+
+    it "lets a callback be registered while it runs" do
+      dispatcher.on("a:1") { nil }
+
+      dispatcher.clear do |k|
+        dispatcher.on("b:2") { nil }
+        k == "a:1"
+      end
+
+      expect(dispatcher).not_to be_subscribed("a:1")
+      expect(dispatcher).to be_subscribed("b:2")
+    end
   end
 end

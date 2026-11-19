@@ -103,14 +103,16 @@ module Ferrum
       end
 
       #
-      # Removes the callbacks of every key the block returns a truthy value for.
+      # Removes the callbacks of every key the block returns a truthy value for. The keys are removed one by one,
+      # another thread can register a callback meanwhile: a hash can't get a new key while `delete_if` iterates it.
       #
       # @yieldparam [String] key
       #
       # @return [void]
       #
       def clear
-        @on.delete_if { |k, _| yield(k) }
+        keys = @on.keys
+        keys.each { |k| @on.delete(k) if yield(k) }
       end
 
       private
